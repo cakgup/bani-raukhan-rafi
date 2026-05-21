@@ -112,6 +112,13 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 @keyframes sp-anim{0%,100%{opacity:0;transform:scale(0) translateY(0)}
   50%{opacity:.85;transform:scale(1.5) translateY(-18px)}}
 
+/* Tap hint — hanya di root awal */
+.tap-hint{
+  font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.16em;
+  color:rgba(212,175,55,.45);text-align:center;margin-top:10px;
+  animation:th-pulse 2.2s ease-in-out infinite;}
+@keyframes th-pulse{0%,100%{opacity:.35}50%{opacity:.85}}
+
 /* ══════════════════════════════════════════
    TREE SCREEN
 ══════════════════════════════════════════ */
@@ -531,13 +538,19 @@ function buildHTML(d) {
     </div>`;
   });
 
+  // Badge: HANYA tampil jika (sudah expanded) ATAU (bukan root)
+  // Root awal → bersih tanpa badge, cukup klik kartu
   let badgeH = '';
-  if (hasK) {
+  if (hasK && (isEx || d.depth > 0)) {
     const cnt = (d._c || d.children || []).length;
     badgeH = `<div class="ex-badge${isEx?' open':''}" data-id="${D.id}">
       ${isEx ? '▲ Tutup Cabang' : `▼ ${cnt} Keturunan`}
     </div>`;
   }
+
+  // Hint ketuk – muncul hanya di root sebelum di-expand
+  const tapHint = (d.depth === 0 && !isEx && hasK)
+    ? `<div class="tap-hint">✦ Ketuk untuk membuka silsilah ✦</div>` : '';
 
   return `<div class="${cls}" data-id="${D.id}">
     ${cornerSVG('tl')}${cornerSVG('tr')}${cornerSVG('bl')}${cornerSVG('br')}
@@ -545,6 +558,7 @@ function buildHTML(d) {
     <div class="nd-name">${D.nama}${deadI}</div>
     ${roleH}
     ${spH}
+    ${tapHint}
     ${badgeH}
   </div>`;
 }
