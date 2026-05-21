@@ -727,7 +727,8 @@ function toggle(d) {
     updateBC(d);
   }
   render(d, false);
-  setTimeout(() => fitVisible(false), 530);
+  // Pertahankan skala — hanya geser agar node terklik terlihat di atas
+  setTimeout(() => panKeepScale(d), 480);
 }
 
 // ── Breadcrumb ──
@@ -751,7 +752,7 @@ function renderBC() {
         if (nd) {
           ROOT.each(d => { if (d.depth > nd.depth && d.children) collapseDeep(d); });
           render(nd, false);
-          setTimeout(() => fitVisible(false), 400);
+          setTimeout(() => panKeepScale(nd), 400);
           bcPath = bcPath.slice(0, i+1);
           renderBC();
         }
@@ -804,6 +805,27 @@ function fitVisible(instant) {
 
   if (instant) svgEl.call(ZOOM.transform, t);
   else svgEl.transition().duration(680).ease(d3.easeCubicInOut).call(ZOOM.transform, t);
+}
+
+// ══════════════════════════════════════════════════════
+// PAN TANPA ZOOM — geser ke node, pertahankan skala
+// ══════════════════════════════════════════════════════
+function panKeepScale(d) {
+  const cw = document.getElementById('canvas').clientWidth;
+  const ch = document.getElementById('canvas').clientHeight;
+  const k  = xform.k;   // ← skala TIDAK berubah
+
+  // Tempatkan node di bagian atas layar (1/4 dari atas)
+  // sehingga anak-anaknya terlihat di bawahnya saat scroll
+  const targetY = Math.min(ch * 0.22, 100);
+
+  const t = d3.zoomIdentity
+    .translate(cw / 2, targetY)
+    .scale(k)
+    .translate(-d.x, -d.y);
+
+  svgEl.transition().duration(520).ease(d3.easeCubicInOut)
+    .call(ZOOM.transform, t);
 }
 
 // ── Controls ──
