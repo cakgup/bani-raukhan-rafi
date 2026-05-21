@@ -5012,11 +5012,11 @@ const FAMILY_DATA = {
               "parentId": "8.1",
               "level": 3,
               "generation_from_founder": 3,
-              "nama": "MOH GUFRON IKHSAN",
+              "nama": "M. GUFRON IKHSAN",
               "meninggal": false,
               "pasangan": [
                 {
-                  "nama": "NUR AINI",
+                  "nama": "NORA ISNAINI",
                   "meninggal": false,
                   "cerai": false
                 }
@@ -5032,7 +5032,7 @@ const FAMILY_DATA = {
                   "parentId": "8.1.1",
                   "level": 4,
                   "generation_from_founder": 4,
-                  "nama": "NURUL FATIYYAH AST TSABILLAH",
+                  "nama": "NURUL FATIYYAH ATS TSABITAH",
                   "meninggal": false,
                   "pasangan": [],
                   "source": {
@@ -5047,7 +5047,7 @@ const FAMILY_DATA = {
                   "parentId": "8.1.1",
                   "level": 4,
                   "generation_from_founder": 4,
-                  "nama": "NUR ALIFAH AST TSABILLAH",
+                  "nama": "NUR ALIFAH ATS TSABITAH",
                   "meninggal": false,
                   "pasangan": [],
                   "source": {
