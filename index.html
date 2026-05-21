@@ -608,12 +608,14 @@ function initTree() {
   (function initCollapse(node) {
     if (node.children) {
       node.children.forEach(initCollapse); // proses anak dulu (post-order)
-      if (node.depth > 0) {               // jangan collapse root
+      if (node.depth > 0) {               // jangan collapse root di sini
         node._c = node.children;
         node.children = null;
       }
     }
   })(ROOT);
+  // ROOT sendiri juga harus disembunyikan anaknya agar hanya 1 node terlihat saat awal
+  if (ROOT.children) { ROOT._c = ROOT.children; ROOT.children = null; }
 
   // Setup zoom — bebas pan+zoom
   ZOOM = d3.zoom()
