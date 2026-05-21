@@ -438,42 +438,46 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 
 
 <script>
-/* ══════════════════════════════════════════════════════
-   BANI RAUKHAN – RAFI  ·  Interactive Family Tree v3
-   Data loaded from family-data.js (no fetch needed)
-══════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════
+   BANI RAUKHAN – RAFI  ·  Family Tree v4
+   Layout: CUSTOM VERTICAL (top-to-bottom, portrait-first)
+   Semua node ditumpuk vertikal, lebar hampir penuh layar
+════════════════════════════════════════════════════════ */
 
-// ── Layout params ──
-// Untuk portrait mobile: node lebih sempit, jarak horizontal lebih kecil
-const NW  = () => window.innerWidth <= 768 ? 160 : 220;
-const NH  = (d) => { const sp = (d.data||d).pasangan||[]; return Math.max(80 + sp.length*40, 56); };
-const HG  = () => window.innerWidth <= 768 ? 180 : 260;   // jarak antar saudara
-const VG  = () => window.innerWidth <= 768 ? 190 : 230;   // jarak antar generasi
+// ── Layout constants ──
+const BASE_NW = () => Math.min(window.innerWidth - 36, 420);
+const NW = (depth) => Math.max(BASE_NW() - depth * 18, BASE_NW() * 0.68);
+const NH = (d) => {
+  const sp = (d.data || d).pasangan || [];
+  return Math.max(90 + sp.length * 44, 68);
+};
+const V_GAP  = 16;   // gap antar node vertikal
+const INDENT = 16;   // indent kiri per level kedalaman
 const GEN_NAMES = ['Pendiri','Generasi I','Generasi II','Generasi III','Generasi IV','Generasi V','Generasi VI'];
 
 // ── State ──
 let ROOT, ZOOM, svgEl, zG, lG, nG, gG;
 let xform = d3.zoomIdentity;
-let hlSet = new Set();
+let hlSet  = new Set();
 let bcPath = [];
 let toastT;
 
-// ── Sparkles on welcome ──
+// ── Sparkles welcome ──
 ;(function(){
   const b = document.getElementById('sp-box');
   for (let i = 0; i < 16; i++) {
     const s = document.createElement('div');
     s.className = 'sp';
     const sz = 3 + Math.random()*4;
-    s.style.cssText = `left:${5+Math.random()*90}%;top:${5+Math.random()*90}%;
-      width:${sz}px;height:${sz}px;--d:${2.5+Math.random()*3}s;--dl:${Math.random()*3}s`;
+    s.style.cssText = `left:${5+Math.random()*90}%;top:${5+Math.random()*90}%;`
+      + `width:${sz}px;height:${sz}px;--d:${2.5+Math.random()*3}s;--dl:${Math.random()*3}s`;
     b.appendChild(s);
   }
 })();
 
-// ── Welcome → Tree ──
+// ── Screen transitions ──
 document.getElementById('btn-enter').addEventListener('click', showTree);
-document.getElementById('btn-back').addEventListener('click', showWelcome);
+document.getElementById('btn-back').addEventListener('click',  showWelcome);
 
 function showTree() {
   document.getElementById('welcome').classList.add('out');
@@ -487,9 +491,9 @@ function showWelcome() {
   document.getElementById('btn-back').classList.remove('on');
 }
 
-// ── SVG corner ornament HTML ──
+// ── Corner SVG ornament ──
 function cornerSVG(cls) {
-  return `<svg class="cc ${cls}" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  return `<svg class="cc ${cls}" viewBox="0 0 20 20" fill="none">
     <path d="M2 2 Q7 2 7 7 Q7 2 13 2" stroke="#D4AF37" stroke-width="1.1" fill="none"/>
     <path d="M2 2 Q2 7 7 7 Q2 7 2 13"  stroke="#D4AF37" stroke-width="1.1" fill="none"/>
     <circle cx="7" cy="7" r="2.2" fill="none" stroke="#D4AF37" stroke-width=".8"/>
@@ -500,10 +504,10 @@ function cornerSVG(cls) {
 
 // ── Build node HTML ──
 function buildHTML(d) {
-  const D = d.data;
+  const D   = d.data;
   const isF = D.jenis === 'founder_couple';
   const isD = !!D.meninggal;
-  const hasK = !!(d.children || d._children);
+  const hasK = !!(d.children || d._c);
   const isEx = !!d.children;
   const sps  = D.pasangan || [];
   const hl   = hlSet.has(D.id);
@@ -529,7 +533,7 @@ function buildHTML(d) {
 
   let badgeH = '';
   if (hasK) {
-    const cnt = (d._children || d.children || []).length;
+    const cnt = (d._c || d.children || []).length;
     badgeH = `<div class="ex-badge${isEx?' open':''}" data-id="${D.id}">
       ${isEx ? '▲ Tutup Cabang' : `▼ ${cnt} Keturunan`}
     </div>`;
@@ -545,122 +549,126 @@ function buildHTML(d) {
   </div>`;
 }
 
-// ── Collapse / Expand helpers ──
-function collapse(d) { if (d.children) { d._c = d.children; d.children = null; } }
-function expand(d)   { if (d._c) { d.children = d._c; d._c = null; } }
-function collapseAll(d) { if (d.children) { d.children.forEach(collapseAll); collapse(d); } }
+// ── Collapse / Expand ──
+function collapse(d)     { if (d.children)  { d._c = d.children; d.children = null; } }
+function expand(d)       { if (d._c)        { d.children = d._c; d._c = null; } }
+function collapseDeep(d) { if (d.children)  { d.children.forEach(collapseDeep); collapse(d); } }
 
-// ── Init tree ──
+// ══════════════════════════════════════════════════════
+// CUSTOM VERTICAL LAYOUT
+// Semua node ditumpuk TOP→BOTTOM dalam satu kolom
+// x = depth * INDENT (sedikit menjorok per level)
+// y meningkat seiring setiap node
+// ══════════════════════════════════════════════════════
+function computeLayout() {
+  let yPos = 24;
+  function visit(node) {
+    const h = NH(node);
+    node.x = node.depth * INDENT;   // sedikit indent per level
+    node.y = yPos + h / 2;
+    yPos += h + V_GAP;
+    if (node.children) node.children.forEach(visit);
+  }
+  visit(ROOT);
+}
+
+// ── Init Tree ──
 function initTree() {
-  // FAMILY_DATA comes from family-data.js
   const data = FAMILY_DATA;
 
-  // Count
+  // Hitung total anggota
   let total = 0;
   (function cnt(n){ total++; (n.children||[]).forEach(cnt); })(data);
   document.getElementById('hdr-count').textContent = `${total} Anggota Terdaftar`;
 
-  // D3 selections
   svgEl = d3.select('#svg');
-  zG = d3.select('#zg');
-  lG = d3.select('#lkg');
-  nG = d3.select('#ndg');
-  gG = d3.select('#gg');
+  zG    = d3.select('#zg');
+  lG    = d3.select('#lkg');
+  nG    = d3.select('#ndg');
+  gG    = d3.select('#gg');
 
-  // Build hierarchy
+  // Buat hierarchy — collapse semua kecuali root
   ROOT = d3.hierarchy(data, d => d.children);
-  // Collapse all children beyond root
   ROOT.each(d => { if (d.depth > 0) collapse(d); });
-
-  // Also apply to _c notation (d3 hierarchy only copies children, not _c)
-  // We need to re-collapse using our helper
   ROOT.each(d => { if (d.depth > 0 && d.children) { d._c = d.children; d.children = null; } });
 
-  // Zoom
+  // Setup zoom — bebas pan+zoom
   ZOOM = d3.zoom()
-    .scaleExtent([0.05, 4])
+    .scaleExtent([0.04, 4])
     .on('zoom', ev => { xform = ev.transform; zG.attr('transform', ev.transform); });
   svgEl.call(ZOOM).on('dblclick.zoom', null);
 
+  computeLayout();
   render(null, true);
-  // Setelah render pertama, fitVisible pakai ROOT.x yang sudah dihitung d3
   setTimeout(() => fitVisible(true), 80);
 
-  // Breadcrumb
   bcPath = [{ id: 'root', nama: 'Raukhan – Rafi' }];
   renderBC();
   setupControls();
   setupSearch();
+
+  // Resize handler
+  let rz;
+  window.addEventListener('resize', () => {
+    clearTimeout(rz);
+    rz = setTimeout(() => { render(ROOT, false); fitVisible(false); }, 300);
+  });
 }
 
-// ── Make layout ──
-function makeLayout() {
-  return d3.tree()
-    .nodeSize([HG(), VG()])
-    .separation((a, b) => a.parent === b.parent ? 1 : 1.2);
+// ── Link path: bezier vertikal dari bawah parent ke atas child ──
+function linkPath(src, tgt) {
+  const px  = src.x;
+  const py  = src.y + NH(src) / 2;    // parent bottom center
+  const cx  = tgt.x;
+  const cy  = tgt.y - NH(tgt) / 2;    // child top center
+  const hy  = py + (cy - py) * 0.55;  // control point
+  return `M ${px} ${py} C ${px} ${hy} ${cx} ${hy} ${cx} ${cy}`;
 }
 
-// ── Main render ──
+// ── Render utama ──
 function render(src, init) {
-  const layout = makeLayout();
-  const nw = NW();
-  layout(ROOT);
+  computeLayout();
 
-  // Gen labels
-  const depMap = d3.rollup(ROOT.descendants(), v => v[0].y, d => d.depth);
-  const genData = Array.from(depMap, ([depth, y]) => ({ depth, y, label: GEN_NAMES[depth] || `Gen ${depth}` }));
-  const gl = gG.selectAll('.gl').data(genData, d => d.depth);
-  gl.enter().append('text').attr('class','gl').attr('x',-1200)
-    .merge(gl).transition().duration(500)
-    .attr('x',-1200).attr('y', d => d.y + 8).text(d => d.label);
-  gl.exit().remove();
-
-  // Links
+  // ── Links ──
   const links = ROOT.links();
-  const lSel = lG.selectAll('.lk').data(links, d => d.target.data.id);
-
-  const lLink = d3.linkVertical().x(n=>n.x).y(n=>n.y);
-  const origin = src ? { x: src.x, y: src.y } : { x: 0, y: 0 };
+  const lSel  = lG.selectAll('.lk').data(links, d => d.target.data.id);
+  const origin = src ? { x: src.x, y: src.y } : { x: 0, y: 24 };
 
   lSel.enter().append('path').attr('class','lk')
-    .attr('d', () => lLink({ source: origin, target: origin }))
-    .attr('opacity',0)
+    .attr('d', () => `M ${origin.x} ${origin.y} L ${origin.x} ${origin.y}`)
+    .attr('opacity', 0)
     .merge(lSel)
-    .transition().duration(480).ease(d3.easeCubicOut)
-    .attr('class', d => `lk ${hlSet.has(d.target.data.id)?'hl':''}`)
-    .attr('d', d => lLink({
-      source: { x: d.source.x, y: d.source.y + NH(d.source)/2 },
-      target: { x: d.target.x, y: d.target.y - NH(d.target)/2 }
-    }))
-    .attr('opacity',1);
+    .transition().duration(500).ease(d3.easeCubicOut)
+    .attr('class', d => `lk ${hlSet.has(d.target.data.id) ? 'hl' : ''}`)
+    .attr('d', d => linkPath(d.source, d.target))
+    .attr('opacity', 1);
 
-  lSel.exit().transition().duration(280).attr('opacity',0).remove();
+  lSel.exit().transition().duration(280).attr('opacity', 0).remove();
 
-  // Nodes
+  // ── Nodes ──
   const nodes = ROOT.descendants();
-  const nSel = nG.selectAll('.nfo').data(nodes, d => d.data.id);
+  const nSel  = nG.selectAll('.nfo').data(nodes, d => d.data.id);
 
   const nEnt = nSel.enter().append('foreignObject')
-    .attr('class','nfo nfo-new')
-    .attr('x', d => (src ? src.x : d.x) - nw/2)
+    .attr('class', 'nfo nfo-new')
+    .attr('x', d => (src ? src.x : d.x) - NW(d.depth) / 2)
     .attr('y', d => src ? src.y - NH(src)/2 : d.y - NH(d)/2)
-    .attr('width', nw)
+    .attr('width',  d => NW(d.depth))
     .attr('height', d => NH(d))
-    .attr('overflow','visible')
+    .attr('overflow', 'visible')
     .attr('opacity', 0);
 
   nEnt.append('xhtml:div')
     .attr('xmlns','http://www.w3.org/1999/xhtml')
     .html(d => buildHTML(d));
 
-  const nMerge = nSel.merge(nEnt);
-
-  nMerge.transition().duration(480).ease(d3.easeCubicOut)
-    .attr('x', d => d.x - nw/2)
-    .attr('y', d => d.y - NH(d)/2)
-    .attr('width', nw)
+  nSel.merge(nEnt)
+    .transition().duration(500).ease(d3.easeCubicOut)
+    .attr('x', d => d.x - NW(d.depth) / 2)
+    .attr('y', d => d.y - NH(d) / 2)
+    .attr('width',  d => NW(d.depth))
     .attr('height', d => NH(d))
-    .attr('opacity',1)
+    .attr('opacity', 1)
     .on('end', function(d) {
       d3.select(this).select('div').html(buildHTML(d));
       attachEv(this, d);
@@ -668,7 +676,7 @@ function render(src, init) {
 
   nEnt.each(function(d) { attachEv(this, d); });
 
-  nSel.exit().transition().duration(260).attr('opacity',0).remove();
+  nSel.exit().transition().duration(280).attr('opacity', 0).remove();
 }
 
 // ── Attach events ──
@@ -694,13 +702,7 @@ function toggle(d) {
     updateBC(d);
   }
   render(d, false);
-  // Auto-fit semua node yang terlihat ke layar
-  setTimeout(() => fitVisible(false), 520);
-}
-
-function collapseDeep(d) {
-  if (d.children) { d.children.forEach(collapseDeep); collapse(d); }
-  // Also handle _c subtree collapse
+  setTimeout(() => fitVisible(false), 530);
 }
 
 // ── Breadcrumb ──
@@ -720,12 +722,11 @@ function renderBC() {
     sp.textContent = i === 0 ? '🏠 ' + item.nama : item.nama;
     if (i < bcPath.length-1) {
       sp.addEventListener('click', () => {
-        // Collapse all below this level
         const nd = ROOT.descendants().find(d => d.data.id === item.id);
         if (nd) {
           ROOT.each(d => { if (d.depth > nd.depth && d.children) collapseDeep(d); });
           render(nd, false);
-          setTimeout(() => panTo(nd), 380);
+          setTimeout(() => fitVisible(false), 400);
           bcPath = bcPath.slice(0, i+1);
           renderBC();
         }
@@ -740,40 +741,33 @@ function renderBC() {
   });
 }
 
-// ── Pan to specific node ──
-function panTo(d) {
-  const w = document.getElementById('canvas').clientWidth;
-  const h = document.getElementById('canvas').clientHeight;
-  const k = Math.min(Math.max(xform.k, 0.5), 1.1);
-  svgEl.transition().duration(600).ease(d3.easeCubicInOut)
-    .call(ZOOM.transform,
-      d3.zoomIdentity.translate(w/2, h/3).scale(k).translate(-d.x, -d.y));
-}
-
-// ── Fit semua node yang terlihat ke dalam layar ──
+// ══════════════════════════════════════════════════════
+// FIT VISIBLE — Auto-zoom agar semua node muat di layar
+// ══════════════════════════════════════════════════════
 function fitVisible(instant) {
+  computeLayout();
   const nodes = ROOT.descendants();
   if (!nodes.length) return;
 
-  const nw = NW();
-  const pad = 24;
-  const xs = nodes.map(n => n.x);
-  const ys = nodes.map(n => n.y);
-  const minX = Math.min(...xs) - nw/2 - pad;
-  const maxX = Math.max(...xs) + nw/2 + pad;
-  const minY = Math.min(...ys) - NH(nodes[0])/2 - pad;
-  const maxY = Math.max(...ys) + NH(nodes[nodes.length-1])/2 + pad;
+  const pad = 18;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    const nw = NW(n.depth), nh = NH(n);
+    minX = Math.min(minX, n.x - nw/2 - pad);
+    maxX = Math.max(maxX, n.x + nw/2 + pad);
+    minY = Math.min(minY, n.y - nh/2 - pad);
+    maxY = Math.max(maxY, n.y + nh/2 + pad);
+  });
 
-  const tw = maxX - minX;   // total tree width
-  const th = maxY - minY;   // total tree height
+  const treeW = maxX - minX;
+  const treeH = maxY - minY;
+  const cw    = document.getElementById('canvas').clientWidth;
+  const ch    = document.getElementById('canvas').clientHeight;
 
-  const cw = document.getElementById('canvas').clientWidth;
-  const ch = document.getElementById('canvas').clientHeight;
-
-  // Hitung skala agar semua muat — tapi jangan terlalu kecil
-  const kx = cw / tw;
-  const ky = ch / th;
-  const k  = Math.min(kx, ky, 1.4) * 0.92;
+  // Prioritaskan fit lebar (portrait), tinggi bisa di-scroll
+  const kx = cw / treeW;
+  const ky = ch / treeH;
+  const k  = Math.min(kx, ky, 1.6) * 0.94;
 
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
@@ -787,23 +781,18 @@ function fitVisible(instant) {
   else svgEl.transition().duration(680).ease(d3.easeCubicInOut).call(ZOOM.transform, t);
 }
 
-// ── Center root (pakai fitVisible sekarang) ──
-function center(instant) {
-  fitVisible(instant);
-}
-
 // ── Controls ──
 function setupControls() {
   document.getElementById('c-zi').onclick = () => svgEl.transition().duration(280).call(ZOOM.scaleBy, 1.4);
   document.getElementById('c-zo').onclick = () => svgEl.transition().duration(280).call(ZOOM.scaleBy, 0.72);
-  document.getElementById('c-rc').onclick = () => { fitVisible(false); toast('Kembali ke tampilan penuh'); };
+  document.getElementById('c-rc').onclick = () => { fitVisible(false); toast('Tampilan disesuaikan'); };
   document.getElementById('c-xg').onclick = () => {
     let expanded = 0;
     const maxD = d3.max(ROOT.descendants(), d => d.depth);
     ROOT.each(d => { if (d.depth === maxD && d._c) { expand(d); expanded++; } });
     render(ROOT, false);
-    setTimeout(() => fitVisible(false), 520);
-    toast(expanded > 0 ? `${expanded} node generasi baru dibuka` : 'Sudah semua terbuka');
+    setTimeout(() => fitVisible(false), 530);
+    toast(expanded > 0 ? `${expanded} node dibuka` : 'Semua sudah terbuka');
   };
   document.getElementById('c-col').onclick = () => {
     if (ROOT.children) ROOT.children.forEach(collapseDeep);
@@ -830,13 +819,10 @@ function setupSearch() {
           while (cur) { hlSet.add(cur.data.id); expand(cur); cur = cur.parent; }
         }
       });
-      toast(hlSet.size > 0 ? `Ditemukan hasil` : 'Tidak ditemukan');
+      toast(hlSet.size > 0 ? 'Ditemukan' : 'Tidak ditemukan');
     }
     render(ROOT, false);
-    if (hlSet.size > 0) {
-      const first = ROOT.descendants().find(d => hlSet.has(d.data.id));
-      if (first) setTimeout(() => panTo(first), 520);
-    }
+    if (hlSet.size > 0) setTimeout(() => fitVisible(false), 520);
   });
 }
 
