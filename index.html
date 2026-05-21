@@ -74,8 +74,9 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 
 /* Gunungan */
 #gunungan{
-  width:110px;margin:0 auto 14px;
-  filter:drop-shadow(0 0 18px rgba(212,175,55,.6));
+  width:150px;margin:0 auto 10px;
+  mix-blend-mode:screen;          /* hitam jadi transparan, emas tetap terlihat */
+  filter:drop-shadow(0 0 22px rgba(212,175,55,.65));
   animation:float 4s ease-in-out infinite;
 }
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
