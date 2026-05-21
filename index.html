@@ -601,10 +601,19 @@ function initTree() {
   nG    = d3.select('#ndg');
   gG    = d3.select('#gg');
 
-  // Buat hierarchy — collapse semua kecuali root
+  // Buat hierarchy — collapse SEMUA level (post-order, dari bawah ke atas)
+  // ROOT.each() berhenti di node yang sudah di-collapse, sehingga depth 2+ tidak ter-collapse.
+  // Post-order menjamin setiap node dicollapse setelah anak-anaknya selesai.
   ROOT = d3.hierarchy(data, d => d.children);
-  ROOT.each(d => { if (d.depth > 0) collapse(d); });
-  ROOT.each(d => { if (d.depth > 0 && d.children) { d._c = d.children; d.children = null; } });
+  (function initCollapse(node) {
+    if (node.children) {
+      node.children.forEach(initCollapse); // proses anak dulu (post-order)
+      if (node.depth > 0) {               // jangan collapse root
+        node._c = node.children;
+        node.children = null;
+      }
+    }
+  })(ROOT);
 
   // Setup zoom — bebas pan+zoom
   ZOOM = d3.zoom()
